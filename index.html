@@ -336,6 +336,11 @@ input,textarea{font-family:inherit;outline:none}
       <div class="profile-tab active" onclick="switchProfileTab(this,'pub')">我的案例</div>
       <div class="profile-tab" onclick="switchProfileTab(this,'fav')">我的收藏</div>
     </div>
+    <div class="profile-actions" style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-secondary" onclick="exportCases()">📤 导出案例 JSON</button>
+      <button class="btn-secondary" onclick="document.getElementById('importFile').click()">📥 导入案例 JSON</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importCases(event)">
+    </div>
     <div id="profileContent"></div>
   </div>
 </section>
@@ -746,6 +751,8 @@ async function callAI(step, userInput, history){
       if(!res.ok){
         const t=await res.text();
         if(res.status===402) toast('DeepSeek 余额不足，请去 platform.deepseek.com 充值 ¥1');
+        else if(res.status===400) toast('输入太长或格式错误，请缩短文字再试（建议单次不超过 1000 字）');
+        else if(res.status===429) toast('请求太快，请稍等几秒再试');
         else toast('AI 服务出错：'+res.status);
         console.error(t);
         return null;
@@ -909,6 +916,43 @@ function renderProfile(){
   }
 }
 function switchProfileTab(el,tab){document.querySelectorAll('.profile-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');profileTab=tab;renderProfile();}
+
+function exportCases(){
+  const data = JSON.stringify(mockCases, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cases_${getUserName()}_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('📤 已导出 '+mockCases.length+' 条案例');
+}
+
+function importCases(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if(!Array.isArray(imported)) throw new Error('文件格式错误');
+      // Merge: avoid duplicates by id
+      const existingIds = new Set(mockCases.map(c=>c.id));
+      const newCases = imported.filter(c=>!existingIds.has(c.id));
+      mockCases = [...newCases, ...mockCases];
+      saveCases();
+      renderCases();
+      toast(`📥 已导入 ${newCases.length} 条新案例（${imported.length - newCases.length} 条已存在跳过）`);
+    } catch(err){
+      toast('导入失败：'+err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = ''; // reset
+}
 
 // ========== Download Word ==========
 function genWordHTML(data){
