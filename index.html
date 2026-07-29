@@ -331,9 +331,11 @@ input,textarea{font-family:inherit;outline:none}
 
 <script>
 // ========== Configuration ==========
-// 在 Vercel 部署时，api/index.js 会提供 chat 接口
-// 本地使用时，前端直接调用 DeepSeek API
-const IS_VERCEL = window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost' && window.location.hostname !== '';
+// 部署模式检测
+// Vercel 模式：走后端代理（隐藏 API Key）
+// 其他模式（本地/GitHub Pages）：浏览器直接调 DeepSeek
+const IS_VERCEL = window.location.hostname.includes('vercel.app');
+const USE_PROXY = IS_VERCEL; // 只有 Vercel 上用代理
 
 // DeepSeek Key - 本地模式：存在浏览器 localStorage 中
 function getApiKey(){
@@ -613,7 +615,7 @@ function advanceStep(userText){
 async function callAI(step, userInput, history){
   try {
     let data;
-    if(IS_VERCEL){
+    if(USE_PROXY){
       const res = await fetch('/api/chat', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({step, userInput, history})
