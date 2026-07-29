@@ -167,6 +167,19 @@ input,textarea{font-family:inherit;outline:none}
 .detail-method .step-list li:last-child{border:none}
 .detail-method .step-list li .snum{width:24px;height:24px;border-radius:50%;background:var(--purple-l);color:var(--purple);font-weight:600;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:2px}
 .detail-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+
+/* Knowledge Base */
+.knowledge-layout{max-width:1100px;margin:0 auto}
+.knowledge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.kw-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:default;transition:.15s;display:flex;flex-direction:column}
+.kw-card:hover{border-color:var(--blue);box-shadow:var(--shadow-md)}
+.kw-card .kw-icon{font-size:28px;margin-bottom:8px}
+.kw-card h3{font-size:16px;font-weight:600;margin-bottom:4px}
+.kw-card .kw-source{font-size:11px;color:var(--text3);margin-bottom:10px}
+.kw-card p{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px;flex:1}
+.kw-card .kw-steps{background:var(--border-l);border-radius:6px;padding:10px 14px;margin-top:auto}
+.kw-card .kw-steps li{font-size:12px;color:var(--text);padding:3px 0;list-style:none;display:flex;gap:6px;align-items:baseline}
+.kw-card .kw-steps li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--blue);flex-shrink:0;margin-top:5px}
 .profile-layout{max-width:900px;margin:0 auto}
 .profile-header{display:flex;align-items:center;gap:20px;margin-bottom:24px}
 .profile-avatar{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;font-weight:600}
@@ -197,6 +210,7 @@ input,textarea{font-family:inherit;outline:none}
     <div class="nav-links">
       <div class="nav-link active" data-nav="home" onclick="go('home')">案例广场</div>
       <div class="nav-link" data-nav="extract" onclick="go('extract')">开始萃取</div>
+      <div class="nav-link" data-nav="knowledge" onclick="go('knowledge')">知识库</div>
       <div class="nav-link" data-nav="profile" onclick="go('profile')">我的主页</div>
     </div>
     <div class="nav-user" id="navUserBtn">晴</div>
@@ -327,7 +341,20 @@ input,textarea{font-family:inherit;outline:none}
 </section>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- Knowledge Base -->
+<section id="view-knowledge" class="view">
+  <div class="knowledge-layout">
+    <div class="hero" style="margin-bottom:24px">
+      <div class="hero-text">
+        <h1>📚 客户成功领域知识库</h1>
+        <p>经典方法论 · 成熟框架 · AI 将在萃取对话中自动引用这些知识</p>
+      </div>
+    </div>
+    <div class="knowledge-grid" id="knowledgeGrid"></div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div><div class="toast" id="toast"></div>
 
 <script>
 // ========== Configuration ==========
@@ -355,6 +382,15 @@ function getApiKey(){
 const AI_PROMPT = `你是「小萃」，一位资深的客户成功（CSM）经验萃取访谈官。你的任务是用 CSM 六步法引导用户深入回顾一个客户成功项目案例，并实时提取关键信息。
 
 六步法流程：第1步「项目背景」了解客户行业、产品、合作时间；第2步「遇到的问题」挖掘核心挑战；第3步「解决策略」关键动作；第4步「执行过程」时间线、节点、工具；第5步「最终结果」量化指标；第6步「方法总结」自动提炼五步打法。
+
+## 可引用的客户成功领域经典框架
+当用户描述的内容与某个框架匹配时，可以在回复中自然提及：
+- 客户健康度模型（数据驱动的红/黄/绿三档评分体系，预测流失风险）
+- 客户生命周期管理（获取→上手→采用→扩展→续约）
+- Champion培养框架（在客户组织中培养关键推动人）
+- 价值实现框架（定期制作ROI价值报告，用数据证明业务收益）
+- 增购扩展框架（信号监控→内部拉通→价值铺垫→分阶段方案）
+- 流失预警与挽回框架（48小时内介入→价值复盘→挽回方案）
 
 对话规则：1. 每次只说一个步骤的内容，不要跳过 2. 自然有深度地追问，像资深同行聊天 3. 根据用户输入实时提取关键词到6个维度 4. 第6步自动生成方法总结 5. 用亲切但专业的中文
 
@@ -410,6 +446,22 @@ const SEED_CASES = [
   }
 ];
 
+// ========== CS Frameworks ==========
+const CS_FRAMEWORKS = [
+  {icon:'📊', name:'客户健康度模型', source:'Gainsight / Totango', desc:'用量化指标评估每个客户的状态，预测流失风险并提前干预。核心是数据驱动的红/黄/绿三档健康度评分。',
+   steps:['指标识别：找出影响留存的关键KPI（使用频次、模块覆盖、NPS、工单量）','权重分配：基于历史数据为每个指标设定贡献权重','综合评分：0-100分健康度模型，自动计算每个客户得分','阈值设定：红(<60)黄(60-80)绿(>80)三档','自动预警：红色触发CSM介入流程，黄色制定改善计划']},
+  {icon:'🔄', name:'客户生命周期管理', source:'Totango / 行业最佳实践', desc:'将客户关系分为获取→上手→采用→扩展→续约五个阶段，每个阶段有独立的管理目标和SOP。',
+   steps:['获取期：明确客户期望，设定合作目标','上手期：30天内完成关键功能激活和使用培训','采用期：建立使用习惯，推动深度功能覆盖','扩展期：识别增购机会，推动高价值模块采用','续约期：提前90天启动续约流程，量化价值交付']},
+  {icon:'📋', name:'Champion 培养框架', source:'Gainsight 客户成功体系', desc:'在客户组织中培养关键推动人（Champion），让客户内部有人推动产品使用和价值传播。',
+   steps:['识别关键人：找到客户内部认可产品价值且有影响力的人','赋能培训：提供深度培训和最佳实践分享','价值认同：帮助Champion向其领导量化展示产品价值','激励与认可：让Champion的贡献被其组织看见','扩展网络：从一个Champion扩展到多个部门负责人']},
+  {icon:'💰', name:'价值实现（Value Realization）', source:'TSIA / 客户成功协会', desc:'系统性向客户证明产品带来的可量化业务价值。核心是定期制作价值报告，用数据说话。',
+   steps:['基准线设定：合作初期建立客户关键指标的基准数据','价值追踪：按季度追踪产品使用带来的指标变化','价值报告：制作客户专属的价值证明报告（ROI分析）','复盘会议：安排季度价值复盘会，对齐目标和成果','价值扩展：基于已知价值推动增购和深度合作']},
+  {icon:'🚀', name:'增购扩展框架（Expansion）', source:'OpenView / SaaS 行业最佳实践', desc:'在现有客户中识别增购机会，通过结构化流程推动合同增长。核心是信号监控和内部协同。',
+   steps:['信号监控：关注客户的招聘、融资、业务扩张等信号','内部拉通：CSM+产品+销售三方信息共享','价值铺垫：以行业分享/最佳实践名义创造客户需求认知','分阶段方案：设计低门槛的分阶段增购方案','SOP固化：将增购流程沉淀为可复用的标准程序']},
+  {icon:'🏥', name:'流失预警与挽回框架', source:'Recurly / SaaS 行业经验', desc:'提前识别客户流失信号，在挽回窗口期内采取结构化干预措施。核心是预警前置和分层干预。',
+   steps:['数据监控：追踪使用频次下降、对接人变更、投诉增加等预警信号','分层分级：按客户价值和预警级别设定不同的干预策略','快速响应：预警触发后48小时内启动CSM介入','价值复盘：安排紧急价值复盘会议，用数据扭转认知','挽回方案：制定针对性改善计划和资源投入方案']}
+];
+
 // ========== Data Layer ==========
 let mockCases = [];
 
@@ -460,11 +512,12 @@ function go(view){
   const el=document.getElementById('view-'+view);
   if(el) el.classList.add('active');
   document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
-  const m={'home':'home','extract':'extract','profile':'profile'};
+  const m={'home':'home','extract':'extract','knowledge':'knowledge','profile':'profile'};
   if(m[view]) document.querySelector(`[data-nav="${m[view]}"]`).classList.add('active');
   window.scrollTo(0,0);
   if(view==='home') renderCases();
   if(view==='profile') renderProfile();
+  if(view==='knowledge') renderFrameworks();
 }
 
 // ========== Home ==========
@@ -502,6 +555,22 @@ document.querySelectorAll('.filter-chip').forEach(ch=>{
 function searchCases(){
   searchTerm=document.getElementById('searchInput').value.trim();
   renderCases();
+}
+
+// ========== Knowledge Base ==========
+function renderFrameworks(){
+  const grid=document.getElementById('knowledgeGrid');
+  grid.innerHTML=CS_FRAMEWORKS.map(f=>`
+    <div class="kw-card">
+      <div class="kw-icon">${f.icon}</div>
+      <h3>${f.name}</h3>
+      <div class="kw-source">${f.source}</div>
+      <p>${f.desc}</p>
+      <div class="kw-steps">
+        ${f.steps.map((s,i)=>`<li><span>${s}</span></li>`).join('')}
+      </div>
+    </div>
+  `).join('');
 }
 
 // ========== Detail ==========
