@@ -632,10 +632,10 @@ async function callAI(step, userInput, history){
       if(!userInput && history.length===0){
         msgs.push({role:'user', content:'用户开始了对话，请由你先开口，用六步法引导访谈。'});
       }
+      const key = getApiKey();
+      if(!key){ toast('请先输入 DeepSeek API Key'); return null; }
       const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method:'POST',
-        const key = getApiKey();
-        if(!key){ toast('请先输入 DeepSeek API Key'); return null; }
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
         body: JSON.stringify({
           model:'deepseek-chat', messages:msgs,
