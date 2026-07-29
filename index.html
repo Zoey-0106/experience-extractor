@@ -338,16 +338,14 @@ input,textarea{font-family:inherit;outline:none}
     </div>
     <div class="profile-actions" style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-secondary" onclick="exportCases()">📤 导出 Word 文档</button>
-      <button class="btn-secondary" onclick="document.getElementById('importFile').click()">📁 选择文件导入</button>
-      <input type="file" id="importFile" accept=".json,.txt,.md" style="display:none" onchange="importCases(event)">
-      <button class="btn-secondary" onclick="showPasteImport()">📋 粘贴文本导入</button>
+      <button class="btn-secondary" onclick="showShareLinkImport()">🔗 粘贴分享链接</button>
     </div>
-    <div id="pasteImportBox" style="display:none;margin-bottom:16px;padding:14px;background:var(--border-l);border-radius:8px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:8px">📋 把别人发给你的 Word 文档内容复制粘贴到这里（Ctrl+V）：</p>
-      <textarea id="pasteImportArea" style="width:100%;min-height:120px;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px" placeholder="在这里粘贴 JSON 格式的案例数据..."></textarea>
+    <div id="shareLinkBox" style="display:none;margin-bottom:16px;padding:14px;background:var(--border-l);border-radius:8px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:8px">🔗 把同事发你的「分享链接」粘贴到这里：</p>
+      <textarea id="shareLinkArea" style="width:100%;min-height:80px;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--mono)" placeholder="https://zoey-0106.github.io/experience-extractor/#case=..."></textarea>
       <div style="margin-top:8px;display:flex;gap:8px">
-        <button class="btn-primary" onclick="importPastedText()" style="padding:6px 14px;font-size:13px">确认导入</button>
-        <button class="btn-secondary" onclick="document.getElementById('pasteImportBox').style.display='none'" style="padding:6px 14px;font-size:13px">取消</button>
+        <button class="btn-primary" onclick="importShareLink()" style="padding:6px 14px;font-size:13px">导入案例</button>
+        <button class="btn-secondary" onclick="document.getElementById('shareLinkBox').style.display='none'" style="padding:6px 14px;font-size:13px">取消</button>
       </div>
     </div>
     <div id="profileContent"></div>
@@ -637,7 +635,7 @@ function openCase(id){
     <div class="detail-section" style="border-left:3px solid var(--green)"><h3 style="color:var(--green)">📊 结果</h3><p>${c.result||''}</p>${c.tags?`<div class="kw-tags">${c.tags.map(t=>`<span class="kw-tag green">${t}</span>`).join('')}</div>`:''}</div>
     ${c.methodology?.steps?`<div class="detail-method"><h3>🧠 可复制方法论</h3><div class="method-sub">AI 基于此案例自动提炼 · 适用于同类客户场景</div><ul class="step-list">${c.methodology.steps.map((s,i)=>`<li><span class="snum">${i+1}</span><span>${s}</span></li>`).join('')}</ul></div>`:''}
     <div class="detail-actions">
-      <button class="btn-primary" onclick="shareCase()">📤 分享案例</button>
+      <button class="btn-primary" onclick="copyShareLink(currentCaseId)">🔗 复制分享链接</button>
       <button class="btn-secondary" onclick="downloadWordFromDetail()">📄 下载 Word</button>
       <button class="btn-secondary" onclick="toggleFav(${c.id})">${c.favorite?'★ 已收藏':'☆ 收藏'}</button>
     </div>
@@ -962,50 +960,6 @@ function exportCases(){
   toast('📤 已导出 Word 文档：'+mockCases.length+' 条案例');
 }
 
-function importCases(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const text = e.target.result.trim();
-      let imported;
-      if(file.name.endsWith('.json')){
-        imported = JSON.parse(text);
-      } else {
-        // Try JSON first, then look for embedded JSON
-        try { imported = JSON.parse(text); }
-        catch { toast('TXT/MD 文件需要 JSON 格式内容，请用"粘贴文本导入"'); return; }
-      }
-      if(!Array.isArray(imported)) throw new Error('文件格式错误');
-      mergeCases(imported);
-    } catch(err){
-      toast('导入失败：'+err.message);
-    }
-  };
-  reader.readAsText(file);
-  event.target.value = '';
-}
-
-function showPasteImport(){
-  document.getElementById('pasteImportBox').style.display = 'block';
-  document.getElementById('pasteImportArea').focus();
-}
-
-function importPastedText(){
-  const text = document.getElementById('pasteImportArea').value.trim();
-  if(!text){ toast('请先粘贴内容'); return; }
-  try {
-    const imported = JSON.parse(text);
-    if(!Array.isArray(imported)) throw new Error('内容不是 JSON 数组格式');
-    mergeCases(imported);
-    document.getElementById('pasteImportArea').value = '';
-    document.getElementById('pasteImportBox').style.display = 'none';
-  } catch(err){
-    toast('解析失败：请确保是 JSON 数组格式（如 [{"title":"...", "background":"..."}, ...]）');
-  }
-}
-
 function mergeCases(imported){
   const existingIds = new Set(mockCases.map(c=>c.id));
   const newCases = imported.filter(c=>!existingIds.has(c.id));
@@ -1013,6 +967,78 @@ function mergeCases(imported){
   saveCases();
   renderCases();
   toast(`📥 已导入 ${newCases.length} 条新案例（${imported.length - newCases.length} 条已存在跳过）`);
+}
+
+// ========== Share Link ==========
+function genCaseShareLink(c){
+  const base = window.location.origin + window.location.pathname;
+  const compressed = btoa(unescape(encodeURIComponent(JSON.stringify(c))));
+  return `${base}#case=${encodeURIComponent(compressed)}`;
+}
+
+function copyShareLink(caseId){
+  const c = mockCases.find(x=>x.id===caseId);
+  if(!c) return;
+  const link = genCaseShareLink(c);
+  navigator.clipboard.writeText(link).then(()=>{
+    toast('🔗 分享链接已复制到剪贴板');
+  }).catch(()=>{
+    // Fallback
+    prompt('复制这个链接发给同事：', link);
+  });
+}
+
+function showShareLinkImport(){
+  document.getElementById('shareLinkBox').style.display = 'block';
+  document.getElementById('shareLinkArea').focus();
+}
+
+function importShareLink(){
+  const url = document.getElementById('shareLinkArea').value.trim();
+  if(!url){ toast('请先粘贴链接'); return; }
+  try {
+    // Extract hash part: #case=base64...
+    const hashIdx = url.indexOf('#');
+    if(hashIdx<0) throw new Error('链接格式不对');
+    const hash = url.substring(hashIdx+1);
+    const params = new URLSearchParams(hash);
+    const encoded = params.get('case');
+    if(!encoded) throw new Error('链接中没有案例数据');
+    const json = decodeURIComponent(escape(atob(decodeURIComponent(encoded))));
+    const c = JSON.parse(json);
+    if(!c.title) throw new Error('案例数据不完整');
+    mergeCases([c]);
+    document.getElementById('shareLinkArea').value = '';
+    document.getElementById('shareLinkBox').style.display = 'none';
+  } catch(err){
+    toast('解析失败：'+err.message);
+  }
+}
+
+function loadFromUrlHash(){
+  const hash = window.location.hash;
+  if(!hash || !hash.includes('case=')) return;
+  try {
+    const params = new URLSearchParams(hash.substring(1));
+    const encoded = params.get('case');
+    if(!encoded) return;
+    const json = decodeURIComponent(escape(atob(decodeURIComponent(encoded))));
+    const c = JSON.parse(json);
+    if(!c.title) return;
+    // Check if already exists
+    const exists = mockCases.some(x => x.id === c.id);
+    if(!exists){
+      mockCases.unshift(c);
+      saveCases();
+    }
+    // Open the case detail
+    openCase(c.id);
+    // Clear hash to prevent re-importing on refresh
+    history.replaceState(null, '', window.location.pathname);
+    toast(exists ? '🔗 已为你打开分享的案例' : '🔗 已导入并打开分享的案例');
+  } catch(e){
+    console.error('Failed to load share link:', e);
+  }
 }
 
 // ========== Download Word ==========
@@ -1051,6 +1077,7 @@ function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t
 loadCases();
 renderCases();
 updateStepProgress();
+loadFromUrlHash();
 </script>
 </body>
 </html>
