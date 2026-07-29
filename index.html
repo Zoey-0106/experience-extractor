@@ -976,15 +976,38 @@ function genCaseShareLink(c){
   return `${base}#case=${encodeURIComponent(compressed)}`;
 }
 
-function copyShareLink(caseId){
+async function shortenUrl(longUrl){
+  // Try is.gd first
+  try {
+    const res = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`, {mode:'cors'});
+    if(res.ok){
+      const text = (await res.text()).trim();
+      if(text && text.startsWith('https://')) return text;
+    }
+  } catch(e){}
+  // Try da.gd fallback
+  try {
+    const res = await fetch(`https://da.gd/api?url=${encodeURIComponent(longUrl)}&format=text`);
+    if(res.ok){
+      const text = (await res.text()).trim();
+      if(text && text.startsWith('https://')) return text;
+    }
+  } catch(e){}
+  return null;
+}
+
+async function copyShareLink(caseId){
   const c = mockCases.find(x=>x.id===caseId);
   if(!c) return;
-  const link = genCaseShareLink(c);
-  navigator.clipboard.writeText(link).then(()=>{
-    toast('🔗 分享链接已复制到剪贴板');
+  const longLink = genCaseShareLink(c);
+  toast('⏳ 正在生成短链接...');
+  const shortLink = await shortenUrl(longLink);
+  const finalLink = shortLink || longLink;
+  const isShort = !!shortLink;
+  navigator.clipboard.writeText(finalLink).then(()=>{
+    toast(isShort ? `🔗 短链接已复制：${shortLink}` : '🔗 链接已复制（短链服务不可用）');
   }).catch(()=>{
-    // Fallback
-    prompt('复制这个链接发给同事：', link);
+    prompt('复制这个链接发给同事：', finalLink);
   });
 }
 
