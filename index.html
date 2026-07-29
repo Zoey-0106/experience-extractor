@@ -337,9 +337,18 @@ input,textarea{font-family:inherit;outline:none}
       <div class="profile-tab" onclick="switchProfileTab(this,'fav')">我的收藏</div>
     </div>
     <div class="profile-actions" style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn-secondary" onclick="exportCases()">📤 导出案例 JSON</button>
-      <button class="btn-secondary" onclick="document.getElementById('importFile').click()">📥 导入案例 JSON</button>
-      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importCases(event)">
+      <button class="btn-secondary" onclick="exportCases()">📤 导出 Word 文档</button>
+      <button class="btn-secondary" onclick="document.getElementById('importFile').click()">📁 选择文件导入</button>
+      <input type="file" id="importFile" accept=".json,.txt,.md" style="display:none" onchange="importCases(event)">
+      <button class="btn-secondary" onclick="showPasteImport()">📋 粘贴文本导入</button>
+    </div>
+    <div id="pasteImportBox" style="display:none;margin-bottom:16px;padding:14px;background:var(--border-l);border-radius:8px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:8px">📋 把别人发给你的 Word 文档内容复制粘贴到这里（Ctrl+V）：</p>
+      <textarea id="pasteImportArea" style="width:100%;min-height:120px;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px" placeholder="在这里粘贴 JSON 格式的案例数据..."></textarea>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button class="btn-primary" onclick="importPastedText()" style="padding:6px 14px;font-size:13px">确认导入</button>
+        <button class="btn-secondary" onclick="document.getElementById('pasteImportBox').style.display='none'" style="padding:6px 14px;font-size:13px">取消</button>
+      </div>
     </div>
     <div id="profileContent"></div>
   </div>
@@ -717,7 +726,28 @@ function advanceStep(userText){
   });
 }
 
+function getDailyUsage(){
+  const today = new Date().toISOString().slice(0,10);
+  const data = JSON.parse(localStorage.getItem('daily_usage') || '{"date":"","count":0}');
+  if(data.date !== today){ data.date = today; data.count = 0; localStorage.setItem('daily_usage', JSON.stringify(data)); }
+  return data.count;
+}
+function incrementUsage(){
+  const today = new Date().toISOString().slice(0,10);
+  const data = JSON.parse(localStorage.getItem('daily_usage') || '{"date":"","count":0}');
+  if(data.date !== today){ data.date = today; data.count = 0; }
+  data.count++;
+  localStorage.setItem('daily_usage', JSON.stringify(data));
+}
+
 async function callAI(step, userInput, history){
+  // Daily usage limit to protect API budget
+  const usage = getDailyUsage();
+  if(usage >= 30){
+    toast('⚠️ 今天对话次数已达上限（30次），明天再来吧。打开 DeepSeek 后台手动续费后重启也行。');
+    return null;
+  }
+  incrementUsage();
   try {
     let data;
     if(USE_PROXY){
@@ -918,17 +948,18 @@ function renderProfile(){
 function switchProfileTab(el,tab){document.querySelectorAll('.profile-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');profileTab=tab;renderProfile();}
 
 function exportCases(){
-  const data = JSON.stringify(mockCases, null, 2);
-  const blob = new Blob([data], {type:'application/json'});
+  if(mockCases.length===0){toast('暂无案例可导出');return;}
+  const content = genMultiCaseWordHTML(mockCases);
+  const blob = new Blob([content], {type:'application/msword;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `cases_${getUserName()}_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `客户成功案例集_${getUserName()}_${new Date().toISOString().slice(0,10)}.doc`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  toast('📤 已导出 '+mockCases.length+' 条案例');
+  toast('📤 已导出 Word 文档：'+mockCases.length+' 条案例');
 }
 
 function importCases(event){
@@ -937,28 +968,69 @@ function importCases(event){
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
-      const imported = JSON.parse(e.target.result);
+      const text = e.target.result.trim();
+      let imported;
+      if(file.name.endsWith('.json')){
+        imported = JSON.parse(text);
+      } else {
+        // Try JSON first, then look for embedded JSON
+        try { imported = JSON.parse(text); }
+        catch { toast('TXT/MD 文件需要 JSON 格式内容，请用"粘贴文本导入"'); return; }
+      }
       if(!Array.isArray(imported)) throw new Error('文件格式错误');
-      // Merge: avoid duplicates by id
-      const existingIds = new Set(mockCases.map(c=>c.id));
-      const newCases = imported.filter(c=>!existingIds.has(c.id));
-      mockCases = [...newCases, ...mockCases];
-      saveCases();
-      renderCases();
-      toast(`📥 已导入 ${newCases.length} 条新案例（${imported.length - newCases.length} 条已存在跳过）`);
+      mergeCases(imported);
     } catch(err){
       toast('导入失败：'+err.message);
     }
   };
   reader.readAsText(file);
-  event.target.value = ''; // reset
+  event.target.value = '';
+}
+
+function showPasteImport(){
+  document.getElementById('pasteImportBox').style.display = 'block';
+  document.getElementById('pasteImportArea').focus();
+}
+
+function importPastedText(){
+  const text = document.getElementById('pasteImportArea').value.trim();
+  if(!text){ toast('请先粘贴内容'); return; }
+  try {
+    const imported = JSON.parse(text);
+    if(!Array.isArray(imported)) throw new Error('内容不是 JSON 数组格式');
+    mergeCases(imported);
+    document.getElementById('pasteImportArea').value = '';
+    document.getElementById('pasteImportBox').style.display = 'none';
+  } catch(err){
+    toast('解析失败：请确保是 JSON 数组格式（如 [{"title":"...", "background":"..."}, ...]）');
+  }
+}
+
+function mergeCases(imported){
+  const existingIds = new Set(mockCases.map(c=>c.id));
+  const newCases = imported.filter(c=>!existingIds.has(c.id));
+  mockCases = [...newCases, ...mockCases];
+  saveCases();
+  renderCases();
+  toast(`📥 已导入 ${newCases.length} 条新案例（${imported.length - newCases.length} 条已存在跳过）`);
 }
 
 // ========== Download Word ==========
 function genWordHTML(data){
   const mt=data.methodology||{}; const title=mt.title||data.methodTitle||'客户成功案例';
   const chk=(s)=>s||'';
-  return `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><style>body{font-family:宋体;font-size:12pt;line-height:1.8;padding:40px}h1{font-size:22pt;color:#1F2937;border-bottom:2px solid #3B82F6;padding-bottom:10px}h2{font-size:16pt;color:#2563EB;margin-top:24px}.section{border:1px solid #E5E7EB;padding:16px;margin:12px 0;border-radius:4px}.step{border:1px solid #DDD6FE;background:#F5F3FF;padding:12px 16px;margin:8px 0;border-radius:4px}</style></head><body><h1>${title}</h1><div class="section"><h2>一、项目背景</h2><p>${chk(data.background)}</p></div><div class="section"><h2>二、遇到的问题</h2><p>${chk(data.problem)}</p></div><div class="section"><h2>三、解决策略</h2><p>${chk(data.strategy)}</p></div><div class="section"><h2>四、执行过程</h2><p>${chk(data.process)}</p></div><div class="section"><h2>五、最终结果</h2><p>${chk(data.result)}</p></div><div class="section" style="border-color:#DDD6FE;background:#F5F3FF"><h2 style="color:#8B5CF6">六、方法总结</h2><p><b>${mt.title||''}</b></p>${mt.steps?mt.steps.map((s,i)=>'<div class="step"><b>步骤'+(i+1)+'</b>：'+s+'</div>').join(''):''}</div></body></html>`;
+  return `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><style>body{font-family:宋体;font-size:12pt;line-height:1.8;padding:40px}h1{font-size:22pt;color:#1F2937;border-bottom:2px solid #3B82F6;padding-bottom:10px}h2{font-size:16pt;color:#2563EB;margin-top:24px}.section{border:1px solid #E5E7EB;padding:16px;margin:12px 0;border-radius:4px}.step{border:1px solid #DDD6FE;background:#F5F3FF;padding:12px 16px;margin:8px 0;border-radius:4px}.meta{color:#666;font-size:10pt;margin-bottom:20px}.toc{background:#F9FAFB;padding:16px;border-radius:6px;margin-bottom:24px}</style></head><body><div class="meta">由 AI 经验萃取官生成 · ${new Date().toLocaleDateString('zh-CN')}</div><h1>${title}</h1><div class="section"><h2>一、项目背景</h2><p>${chk(data.background)}</p></div><div class="section"><h2>二、遇到的问题</h2><p>${chk(data.problem)}</p></div><div class="section"><h2>三、解决策略</h2><p>${chk(data.strategy)}</p></div><div class="section"><h2>四、执行过程</h2><p>${chk(data.process)}</p></div><div class="section"><h2>五、最终结果</h2><p>${chk(data.result)}</p></div><div class="section" style="border-color:#DDD6FE;background:#F5F3FF"><h2 style="color:#8B5CF6">六、方法总结</h2><p><b>${mt.title||''}</b></p>${mt.steps?mt.steps.map((s,i)=>'<div class="step"><b>步骤'+(i+1)+'</b>：'+s+'</div>').join(''):''}</div></body></html>`;
+}
+function genMultiCaseWordHTML(cases){
+  const listItems = cases.map((c,i)=>{
+    const mt = c.methodology?.title || '未命名案例';
+    return `<li><a href="#case${i+1}">${i+1}. ${c.title||mt}</a></li>`;
+  }).join('');
+  const casesHTML = cases.map((c,i)=>{
+    const inner = genWordHTML(c).match(/<body>([\s\S]*)<\/body>/)[1];
+    return `<div style="page-break-after:always"><h1 id="case${i+1}" style="font-size:22pt;color:#1F2937;border-bottom:2px solid #3B82F6;padding-bottom:10px">案例 ${i+1}: ${c.title||c.methodology?.title||'未命名'}</h1>${inner}</div>`;
+  }).join('');
+  return `\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><style>body{font-family:宋体;font-size:12pt;line-height:1.8;padding:40px}h1{font-size:22pt;color:#1F2937;border-bottom:2px solid #3B82F6;padding-bottom:10px}h2{font-size:16pt;color:#2563EB;margin-top:24px}.section{border:1px solid #E5E7EB;padding:16px;margin:12px 0;border-radius:4px}.step{border:1px solid #DDD6FE;background:#F5F3FF;padding:12px 16px;margin:8px 0;border-radius:4px}.toc{background:#F9FAFB;padding:16px;border-radius:6px;margin-bottom:24px}.toc li{margin:6px 0;color:#1D4ED8}.meta{color:#666;font-size:10pt;margin-bottom:20px}</style></head><body><div class="meta">AI 经验萃取官 · 共 ${cases.length} 条案例 · ${new Date().toLocaleDateString('zh-CN')}</div><h1>我的客户成功案例集</h1><div class="toc"><h2>📑 目录</h2><ol>${listItems}</ol></div>${casesHTML}</body></html>`;
 }
 function downloadWord(data,n){
   const blob=new Blob([genWordHTML(data)],{type:'application/msword;charset=utf-8'});
