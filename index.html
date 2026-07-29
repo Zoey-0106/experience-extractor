@@ -213,7 +213,7 @@ input,textarea{font-family:inherit;outline:none}
       <div class="nav-link" data-nav="knowledge" onclick="go('knowledge')">知识库</div>
       <div class="nav-link" data-nav="profile" onclick="go('profile')">我的主页</div>
     </div>
-    <div class="nav-user" id="navUserBtn">晴</div>
+    <div class="nav-user" id="navUserBtn" onclick="editUserName()" title="点击设置你的名字">👤</div>
   </div>
 </nav>
 
@@ -323,8 +323,8 @@ input,textarea{font-family:inherit;outline:none}
     <div class="profile-header">
       <div class="profile-avatar">晴</div>
       <div class="profile-info">
-        <h2>晴子</h2>
-        <div class="role">SaaS 客户成功经理 · 5年经验</div>
+        <h2 id="profileName">访客用户</h2>
+        <div class="role">SaaS 客户成功经理 · 点击右上角头像可设置名称</div>
         <div class="profile-stats">
           <div class="profile-stat"><b id="statPub">0</b><span>已发布</span></div>
           <div class="profile-stat"><b id="statDraft">0</b><span>草稿</span></div>
@@ -364,18 +364,49 @@ input,textarea{font-family:inherit;outline:none}
 const IS_VERCEL = window.location.hostname.includes('vercel.app');
 const USE_PROXY = IS_VERCEL; // 只有 Vercel 上用代理
 
-// DeepSeek Key - 本地模式：存在浏览器 localStorage 中
+// DeepSeek Key - 默认共享 Key（用户可覆盖）
+const SHARED_KEY = 'sk-2b85894759eb4d39bee7d744de6fc0e2';
+
 function getApiKey(){
   let key = localStorage.getItem('deepseek_key');
   if(!key){
-    key = prompt('请输入你的 DeepSeek API Key（可在 platform.deepseek.com 获取）：\n只想浏览案例？点取消即可');
-    if(key && key.trim()) {
-      localStorage.setItem('deepseek_key', key.trim());
-      return key.trim();
-    }
-    return null;
+    // 首次使用：使用平台共享 Key（你可以改成自己的）
+    localStorage.setItem('deepseek_key', SHARED_KEY);
+    key = SHARED_KEY;
+    setTimeout(()=>toast('💡 提示：当前使用平台共享 Key，可点击右上角头像输入自己的 DeepSeek Key（更安全）'), 1500);
   }
   return key;
+}
+
+function setApiKey(){
+  const newKey = prompt('请输入你的 DeepSeek API Key：\n（留空取消）', localStorage.getItem('deepseek_key') || '');
+  if(newKey && newKey.trim()){
+    localStorage.setItem('deepseek_key', newKey.trim());
+    toast('✅ 已更新为你自己的 API Key');
+  }
+}
+
+function getUserName(){
+  return localStorage.getItem('user_name') || '用户';
+}
+
+function setUserName(name){
+  if(name && name.trim()){
+    localStorage.setItem('user_name', name.trim());
+    document.getElementById('navUserBtn').textContent = name.trim().substring(0,2);
+  }
+}
+
+function editUserName(){
+  const cur = getUserName();
+  const name = prompt('设置你的显示名称（2个字以内）：', cur);
+  if(name && name.trim()){
+    setUserName(name);
+    toast('👋 已设置：' + name);
+    // Update profile section if visible
+    const pi = document.querySelector('.profile-info h2');
+    if(pi) pi.textContent = name.trim();
+  }
 }
 
 // DeepSeek System Prompt
@@ -633,7 +664,7 @@ function addAIMsg(text,si){
 function addUserMsg(text){
   if(!text.trim())return;
   const m=document.createElement('div');m.className='chat-msg user';
-  m.innerHTML=`<div class="msg-avatar">晴</div><div class="msg-bubble">${text}</div>`;
+  m.innerHTML=`<div class="msg-avatar">${getUserName().substring(0,1)||'我'}</div><div class="msg-bubble">${text}</div>`;
   document.getElementById('chatMessages').appendChild(m);
   document.getElementById('chatMessages').scrollTop=99999;
   conversationLog.push({role:'user',text});
@@ -847,7 +878,7 @@ function confirmCase(){
     id:Date.now(),
     title:caseData.background.substring(0,50)+'...',
     category:extractedKW.problem.find(k=>k.includes('流失')||k.includes('续约'))?'流失挽回':extractedKW.problem.find(k=>k.includes('增购'))?'续约增购':extractedKW.action.find(k=>k.includes('协同'))?'跨部门协作':'客户健康度',
-    author:'晴子', authorRole:'SaaS 客户成功经理', tags:tags,
+    author:getUserName(), authorRole:'SaaS 客户成功经理', tags:tags,
     background:caseData.background, problem:caseData.problem, strategy:caseData.strategy,
     process:caseData.process, result:caseData.result,
     methodology:{title:caseData.methodTitle,steps:[...caseData.methodSteps]},
@@ -860,7 +891,11 @@ function confirmCase(){
 
 // ========== Profile ==========
 function renderProfile(){
-  const pub=mockCases.filter(c=>c.author==='晴子');
+  const username = getUserName();
+  document.getElementById('profileName').textContent = username;
+  document.querySelector('.profile-avatar').textContent = username.substring(0,1);
+  document.querySelector('.nav-user').textContent = username.substring(0,2) || '👤';
+  const pub=mockCases.filter(c=>c.author===username || c.author==='晴子');
   document.getElementById('statPub').textContent=pub.length;
   document.getElementById('statFav').textContent=mockCases.filter(c=>c.favorite).length;
   const c=document.getElementById('profileContent');
