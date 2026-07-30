@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>经验萃取 · AI客户成功顾问经验萃取平台</title>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <style>
 :root{
   --blue:#1D4ED8;--blue-d:#1E40AF;--blue-l:#EFF6FF;--blue-border:#BFDBFE;
@@ -240,6 +241,8 @@ input,textarea{font-family:inherit;outline:none}
 .detail-method .step-list li:last-child{border:none}
 .detail-method .step-list li .snum{width:24px;height:24px;border-radius:50%;background:var(--purple-l);color:var(--purple);font-weight:600;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:2px}
 .detail-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+/* Print styles for PDF export */
+@media print{body{background:#fff;padding:0!important}.container{max-width:100%;box-shadow:none;border:none;padding:20px 40px}.nav,.hero,.filter-bar,.chat-panel,.extract-layout,.avatar-panel,.keyword-panel,.kw-card,.profile-actions,.profile-tabs,.search-box,.sort-bar,.toast,.detail-actions,.config-bar,.star-block .step-idx{display:none!important}.detail-section,.star-block{border:1px solid #ddd!important;page-break-inside:avoid}.star-block-body textarea{border:none!important;height:auto!important;overflow:visible}.detail-method{border:1px solid #DDD6FE!important;background:#F5F3FF!important;page-break-inside:avoid}.star-block-body .method-steps input{border:none!important;width:100%!important}}
 
 /* Knowledge Base */
 .knowledge-layout{max-width:1100px;margin:0 auto}
@@ -419,6 +422,17 @@ input,textarea{font-family:inherit;outline:none}
     <div class="profile-actions" style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-secondary" onclick="exportCases()">📤 导出 Word 文档</button>
       <button class="btn-secondary" onclick="showShareLinkImport()">🔗 粘贴分享链接</button>
+      <button class="btn-secondary" onclick="document.getElementById('importDocFile').click()">📁 导入 Word/文本</button>
+      <input type="file" id="importDocFile" accept=".docx,.txt" style="display:none" onchange="importDocFile(event)">
+      <button class="btn-secondary" onclick="showImportTextArea()" style="background:var(--purple-l);border-color:var(--purple-border);color:var(--purple)">✏️ 粘贴文本导入</button>
+    </div>
+    <div id="importTextBox" style="display:none;margin-bottom:16px;padding:14px;background:var(--border-l);border-radius:8px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:8px">📝 把你已有的案例文本粘贴到这里，AI 会按六步法重新整理：</p>
+      <textarea id="importTextArea" style="width:100%;min-height:120px;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px" placeholder="粘贴你的案例文本..."></textarea>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button class="btn-primary" onclick="importTextAsCase()" style="padding:6px 14px;font-size:13px">AI 整理并导入</button>
+        <button class="btn-secondary" onclick="document.getElementById('importTextBox').style.display='none'" style="padding:6px 14px;font-size:13px">取消</button>
+      </div>
     </div>
     <div id="shareLinkBox" style="display:none;margin-bottom:16px;padding:14px;background:var(--border-l);border-radius:8px">
       <p style="font-size:12px;color:var(--text2);margin-bottom:8px">🔗 把同事发你的「分享链接」粘贴到这里：</p>
@@ -786,7 +800,9 @@ function openCase(id){
     ${c.methodology?.steps?`<div class="detail-method"><h3>🧠 可复制方法论</h3><div class="method-sub">AI 基于此案例自动提炼 · 适用于同类客户场景</div><ul class="step-list">${c.methodology.steps.map((s,i)=>`<li><span class="snum">${i+1}</span><span>${s}</span></li>`).join('')}</ul></div>`:''}
     <div class="detail-actions">
       <button class="btn-primary" onclick="copyShareLink(currentCaseId)">🔗 复制分享链接</button>
-      <button class="btn-secondary" onclick="downloadWordFromDetail()">📄 下载 Word</button>
+      <button class="btn-secondary" onclick="downloadWordFromDetail()">📄 Word</button>
+      <button class="btn-secondary" onclick="printAsPDF(currentCaseId)">📕 PDF</button>
+      <button class="btn-secondary" onclick="optimizeCase(currentCaseId)" style="background:var(--purple-l);border-color:var(--purple-border);color:var(--purple)">🤖 AI 优化</button>
       <button class="btn-secondary" onclick="toggleFav(${c.id})">${c.favorite?'★ 已收藏':'☆ 收藏'}</button>
     </div>
   `;
@@ -1225,6 +1241,178 @@ function loadFromUrlHash(){
   } catch(e){
     console.error('Failed to load share link:', e);
   }
+}
+
+// ========== PDF Export ==========
+function printAsPDF(caseId){
+  const c = mockCases.find(x=>x.id===caseId);
+  if(!c) return;
+  openCase(caseId);
+  setTimeout(() => window.print(), 500);
+}
+
+// ========== AI Optimize Case ==========
+const OPTIMIZE_PROMPT = `你是一位专业客户成功经验萃取官。下面有一段原始案例文本，请用CSM六步法重新整理成结构化案例。
+
+请按这个格式输出（纯JSON，不要markdown）：
+{"title":"案例标题","background":"项目背景","problem":"遇到的问题","strategy":"解决策略","process":"执行过程","result":"最终结果","methodology":{"title":"方法论名称","steps":["步骤1","步骤2","步骤3","步骤4","步骤5"]}}
+
+要求：
+1. 从原始文本中提取信息填入对应字段
+2. 如果某个字段在原文中找不到信息，留空
+3. 方法总结（methodology）基于原文提炼五步打法
+4. 保留原文中有价值的具体细节和数据`;
+
+async function optimizeCase(caseId){
+  const c = mockCases.find(x=>x.id===caseId);
+  if(!c) return;
+  const rawText = `案例标题: ${c.title}\n背景: ${c.background||''}\n问题: ${c.problem||''}\n策略: ${c.strategy||''}\n执行: ${c.process||''}\n结果: ${c.result||''}\n方法论: ${c.methodology?.title||''} ${(c.methodology?.steps||[]).join(';')}`;
+  toast('🤖 AI 正在优化案例...');
+  try {
+    // Build LLM call
+    const msgs = [
+      {role:'system', content: OPTIMIZE_PROMPT},
+      {role:'user', content: rawText}
+    ];
+    let data;
+    if(USE_PROXY){
+      const res = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({step:6, userInput:rawText, history:[]})});
+      data = await res.json();
+    } else {
+      const key = getApiKey();
+      if(!key){ toast('请先输入 DeepSeek API Key'); return; }
+      const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+        body: JSON.stringify({model:'deepseek-chat', messages:msgs, response_format:{type:'json_object'}, temperature:0.6, max_tokens:2000})
+      });
+      if(!res.ok){ toast('AI 优化失败'); return; }
+      const d = await res.json();
+      data = JSON.parse(d.choices[0].message.content);
+    }
+    // Save optimized version as a new case
+    const optimized = {
+      id: Date.now(),
+      title: data.title || c.title,
+      category: c.category,
+      author: getUserName(),
+      authorRole: 'SaaS 客户成功经理',
+      tags: c.tags || [],
+      background: data.background || c.background,
+      problem: data.problem || c.problem,
+      strategy: data.strategy || c.strategy,
+      process: data.process || c.process,
+      result: data.result || c.result,
+      methodology: data.methodology || c.methodology || {title:'',steps:[]},
+      favorite: false
+    };
+    mockCases.unshift(optimized);
+    saveCases();
+    toast('✅ AI 优化完成！新案例已生成');
+    openCase(optimized.id);
+  } catch(e){
+    toast('AI 优化失败：'+e.message);
+  }
+}
+
+// ========== Import from Word/Text ==========
+function showImportTextArea(){
+  document.getElementById('importTextBox').style.display = 'block';
+}
+
+async function importDocFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  toast('⏳ 正在解析文件...');
+  try {
+    let text = '';
+    if(file.name.endsWith('.docx')){
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({arrayBuffer});
+      text = result.value;
+    } else if(file.name.endsWith('.txt')){
+      text = await file.text();
+    } else {
+      toast('仅支持 .docx 和 .txt 格式。PDF 和 .doc 请先粘贴文本');
+      return;
+    }
+    if(!text.trim()){ toast('文件内容为空'); return; }
+    // Send to AI for structuring
+    const msgs = [
+      {role:'system', content: OPTIMIZE_PROMPT},
+      {role:'user', content: text.substring(0, 5000)} // truncate long text
+    ];
+    const key = getApiKey();
+    if(!key){ toast('请先输入 DeepSeek API Key'); return; }
+    const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body: JSON.stringify({model:'deepseek-chat', messages:msgs, response_format:{type:'json_object'}, temperature:0.6, max_tokens:2000})
+    });
+    if(!res.ok){ toast('AI 整理失败，请尝试粘贴文本导入'); return; }
+    const d = await res.json();
+    const data = JSON.parse(d.choices[0].message.content);
+    const newCase = {
+      id: Date.now(),
+      title: data.title || '导入案例',
+      category: '新人上手',
+      author: getUserName(),
+      authorRole: 'SaaS 客户成功经理',
+      tags: [],
+      background: data.background || text.substring(0,200),
+      problem: data.problem || '',
+      strategy: data.strategy || '',
+      process: data.process || '',
+      result: data.result || '',
+      methodology: data.methodology || {title:'', steps:[]},
+      favorite: false
+    };
+    mockCases.unshift(newCase);
+    saveCases();
+    toast('✅ 文件导入成功！AI 已按六步法整理');
+    openCase(newCase.id);
+  } catch(e){ toast('导入失败：'+e.message); }
+  event.target.value = '';
+}
+
+async function importTextAsCase(){
+  const text = document.getElementById('importTextArea').value.trim();
+  if(!text){ toast('请先粘贴文本'); return; }
+  toast('🤖 AI 正在按六步法整理...');
+  try {
+    const msgs = [
+      {role:'system', content: OPTIMIZE_PROMPT},
+      {role:'user', content: text.substring(0, 5000)}
+    ];
+    const key = getApiKey();
+    if(!key){ toast('请先输入 DeepSeek API Key'); return; }
+    const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body: JSON.stringify({model:'deepseek-chat', messages:msgs, response_format:{type:'json_object'}, temperature:0.6, max_tokens:2000})
+    });
+    if(!res.ok){ toast('AI 整理失败'); return; }
+    const d = await res.json();
+    const data = JSON.parse(d.choices[0].message.content);
+    const newCase = {
+      id: Date.now(),
+      title: data.title || '导入案例',
+      category: '新人上手',
+      author: getUserName(),
+      authorRole: 'SaaS 客户成功经理',
+      tags: [],
+      background: data.background || text.substring(0,200),
+      problem: data.problem || '',
+      strategy: data.strategy || '',
+      process: data.process || '',
+      result: data.result || '',
+      methodology: data.methodology || {title:'', steps:[]},
+      favorite: false
+    };
+    mockCases.unshift(newCase);
+    saveCases();
+    document.getElementById('importTextArea').value = '';
+    document.getElementById('importTextBox').style.display = 'none';
+    toast('✅ AI 整理完成！新案例已生成');
+    openCase(newCase.id);
+  } catch(e){ toast('整理失败：'+e.message); }
 }
 
 // ========== Download Word ==========
