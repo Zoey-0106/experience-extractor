@@ -73,7 +73,68 @@ input,textarea{font-family:inherit;outline:none}
 .sort-bar select{padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card);color:var(--text2);cursor:pointer;outline:none}
 .sort-bar select:focus{border-color:var(--blue)}
 .extract-layout{display:grid;grid-template-columns:260px 1fr 260px;gap:20px;height:calc(100vh - 56px - 64px);min-height:540px}
-@media(max-width:900px){.extract-layout{grid-template-columns:1fr;height:auto}.avatar-panel,.keyword-panel{display:none}.hero{flex-direction:column;text-align:center;padding:28px}.case-grid{grid-template-columns:1fr}}
+@media(max-width:900px){
+  .extract-layout{grid-template-columns:1fr;height:auto;min-height:calc(100vh - 56px)}
+  .avatar-panel,.keyword-panel{display:none}
+  .hero{flex-direction:column;text-align:center;padding:28px}
+  .case-grid{grid-template-columns:1fr}
+  /* Mobile chat panel */
+  .chat-panel{border-radius:0;border:none;min-height:calc(100vh - 56px)}
+  .chat-header{padding:10px 12px}
+  .chat-header h3{font-size:13px}
+  .chat-messages{padding:12px;gap:10px;flex:1}
+  .chat-msg{max-width:92%}
+  .msg-bubble{font-size:14px;padding:8px 12px}
+  .chat-input{padding:8px 10px;position:sticky;bottom:0;background:var(--card);border-top:1px solid var(--border);gap:6px}
+  .chat-input .text-input{font-size:16px;padding:8px 10px}  /* prevent iOS zoom */
+  .chat-input .send-btn{padding:8px 14px;font-size:13px}
+  .chat-input .voice-btn{width:38px;height:38px;font-size:16px}
+  .chat-input .end-btn{font-size:11px;padding:6px 10px}
+  /* Mobile nav */
+  .nav-inner{gap:12px;padding:0 12px}
+  .nav-links{gap:2px}
+  .nav-link{padding:5px 10px;font-size:13px}
+  /* Mobile container */
+  .container{padding:16px 12px}
+  /* Mobile home */
+  .hero-btn{padding:12px 20px;font-size:14px;width:100%}
+  .filter-bar{gap:6px}
+  .search-box input{width:150px;font-size:13px}
+  .search-box input:focus{width:100%}
+  /* Mobile case grid */
+  .case-card{padding:14px}
+  .case-card h3{font-size:14px}
+  .case-card p{font-size:12px}
+  /* Mobile detail */
+  .detail-layout{padding:0}
+  .detail-section{padding:14px 16px}
+  .detail-actions{gap:8px}
+  .detail-actions button{font-size:12px;padding:7px 12px}
+  /* Mobile confirm */
+  .confirm-layout{padding:0}
+  .star-block-body textarea{font-size:13px}
+  /* Mobile knowledge */
+  .knowledge-grid{grid-template-columns:1fr}
+  /* Mobile profile */
+  .profile-header{flex-direction:column;text-align:center}
+  .profile-actions{justify-content:center}
+  /* Mobile filter + sort */
+  .sort-bar select{font-size:12px;padding:3px 6px}
+  .filter-chip{padding:5px 10px;font-size:12px}
+}
+@media(max-width:480px){
+  .nav-links{gap:1px}
+  .nav-link{padding:4px 6px;font-size:11px}
+  .search-box input{width:120px}
+  .chat-messages{padding:8px}
+  .chat-msg{max-width:96%}
+  .msg-bubble{font-size:13px;padding:6px 10px}
+  .chat-input .text-input{font-size:16px}
+  .hero{padding:20px 16px}
+  .hero-text h1{font-size:18px}
+  .hero-text p{font-size:13px}
+  .container{padding:12px 8px}
+}
 .avatar-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;align-items:center;text-align:center;overflow-y:auto}
 .avatar-img{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));display:flex;align-items:center;justify-content:center;font-size:34px;margin-bottom:12px;position:relative;flex-shrink:0}
 .avatar-img .pulse{position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--blue);opacity:0;animation:pulse 2s infinite}
@@ -477,6 +538,11 @@ const AI_PROMPT = `你是「小萃」，一位资深的客户成功（CSM）经�
 - 价值实现框架（定期制作ROI价值报告）
 - 增购扩展框架（信号监控→内部拉通→分阶段方案）
 - 流失预警与挽回框架（48小时内介入→价值复盘→挽回方案）
+- CS成熟度模型（救火→被动→主动→预测→规模，衡量组织CS水平）
+- TSIA客户成功运营框架（采用率/健康度/价值交付/满意度四维运营体系）
+- HubSpot飞轮模型（客户满意度驱动增长，满意客户带来新客户）
+- AI预测性客户成功（机器学习预测流失和增购，让CSM主动出击）
+- AI规模化客户运营（自动化+智能推荐，让机器处理重复工作）
 
 ## 输出格式（务必返回纯 JSON，不要 markdown 包裹）
 {"reply":"你的回应","keywords":{"company":[],"problem":[],"action":[],"process":[],"result":[],"method":[]},"methodology":{"title":"","steps":[]},"step_complete":true}
@@ -551,7 +617,18 @@ const CS_FRAMEWORKS = [
   {icon:'🚀', name:'增购扩展框架（Expansion）', source:'OpenView / SaaS 行业最佳实践', desc:'在现有客户中识别增购机会，通过结构化流程推动合同增长。核心是信号监控和内部协同。',
    steps:['信号监控：关注客户的招聘、融资、业务扩张等信号','内部拉通：CSM+产品+销售三方信息共享','价值铺垫：以行业分享/最佳实践名义创造客户需求认知','分阶段方案：设计低门槛的分阶段增购方案','SOP固化：将增购流程沉淀为可复用的标准程序']},
   {icon:'🏥', name:'流失预警与挽回框架', source:'Recurly / SaaS 行业经验', desc:'提前识别客户流失信号，在挽回窗口期内采取结构化干预措施。核心是预警前置和分层干预。',
-   steps:['数据监控：追踪使用频次下降、对接人变更、投诉增加等预警信号','分层分级：按客户价值和预警级别设定不同的干预策略','快速响应：预警触发后48小时内启动CSM介入','价值复盘：安排紧急价值复盘会议，用数据扭转认知','挽回方案：制定针对性改善计划和资源投入方案']}
+   steps:['数据监控：追踪使用频次下降、对接人变更、投诉增加等预警信号','分层分级：按客户价值和预警级别设定不同的干预策略','快速响应：预警触发后48小时内启动CSM介入','价值复盘：安排紧急价值复盘会议，用数据扭转认知','挽回方案：制定针对性改善计划和资源投入方案']},
+  // ----- 新加 5 个框架 -----
+  {icon:'📈', name:'客户成功成熟度模型 (CS Maturity Model)', source:'Gainsight / CS Collective', desc:'衡量组织客户成功能力的成熟度，从被动救火到主动预测再到规模化运营。帮助企业定位当前阶段并规划升级路径。',
+   steps:['第一阶段「救火」：CSM被动响应，无系统化流程','第二阶段「被动」：建立基础SOP，但主要靠人工','第三阶段「主动」：数据驱动，健康度+使用分析定期输出','第四阶段「预测」：AI辅助预测流失/增购，提前干预','第五阶段「规模」：系统化运营，CS成为收入引擎']},
+  {icon:'🏛️', name:'TSIA 客户成功运营框架', source:'TSIA（Technology & Services Industry Association）', desc:'由TSIA提出的标准化客户成功运营模型，将CS拆解为可衡量的运营维度和指标体系，全球超过300家科技公司采用。',
+   steps:['客户采纳率：衡量客户是否正确使用了产品核心功能','客户健康度：综合使用频次、NPS、工单量的多维评分','价值交付评估：定期衡量产品为客户带来的具体业务收益','客户满意度追踪：NPS、CSAT、CES三指标体系','运营效率优化：客户触达频率、工单响应时效、续约率追踪']},
+  {icon:'🔄', name:'HubSpot 飞轮模型 (Flywheel Model)', source:'HubSpot', desc:'颠覆传统的销售漏斗思维，提出「飞轮」模型——客户满意度驱动增长，满意的客户带来更多客户。每个满意的CS互动都在为飞轮增加动力。',
+   steps:['吸引 (Attract)：通过内容/口碑/案例吸引潜在客户','互动 (Engage)：个性化沟通帮助客户实现价值','愉悦 (Delight)：主动提供超出预期的服务和支持','口碑扩展：满意的客户推荐新客户，飞轮加速','闭环优化：吸收客户反馈持续改进产品和服务']},
+  {icon:'🤖', name:'AI 预测性客户成功 (Predictive CS)', source:'Gainsight / 行业领先实践', desc:'利用机器学习和AI算法，从海量数据中自动识别客户行为模式，提前预测流失概率、健康度变化趋势和增购时机，让CSM从被动响应变为主动出击。',
+   steps:['数据采集：整合产品使用数据、工单数据、客户属性等多源数据','特征工程：筛选与留存/增购强相关的行为特征（登录频次、模块覆盖率等）','模型训练：基于历史数据训练流失预测/增购预测模型','预警触发：系统自动标记高流失风险客户并推送CSM','自动化干预：基于风险等级自动发送关怀邮件或触发SOP']},
+  {icon:'⚡', name:'AI 规模化客户成功运营', source:'Totango / Salesforce', desc:'利用AI和自动化工具实现客户成功的大规模运营，让CS团队以更少的人服务更多的客户。核心是让机器处理重复工作，让CSM聚焦高价值互动。',
+   steps:['智能路由：AI自动分配客户请求到最合适的CSM或自助通道','自动化工作流：客户旅程中的关键节点自动触发触达（上线提醒、健康度告警等）','智能推荐：基于相似客户的成功模式推荐最佳干预策略','自服务门户：AI客服+知识库，让客户自助解决常见问题','效能分析：AI自动统计CS团队效率指标，识别瓶颈和优化方向']}
 ];
 
 // ========== Data Layer ==========
@@ -1051,7 +1128,14 @@ function mergeCases(imported){
 // ========== Share Link ==========
 function genCaseShareLink(c){
   const base = window.location.origin + window.location.pathname;
-  const compressed = btoa(unescape(encodeURIComponent(JSON.stringify(c))));
+  // Strip non-essential fields to reduce URL length, keep only what's needed
+  const mini = {
+    id: c.id, title: c.title, category: c.category, author: c.author, authorRole: c.authorRole,
+    tags: (c.tags||[]).slice(0,4), background: c.background,
+    problem: c.problem, strategy: c.strategy, process: c.process, result: c.result,
+    methodology: c.methodology ? {title: c.methodology.title, steps: c.methodology.steps} : null
+  };
+  const compressed = btoa(unescape(encodeURIComponent(JSON.stringify(mini))));
   return `${base}#case=${encodeURIComponent(compressed)}`;
 }
 
