@@ -51,15 +51,27 @@ input,textarea{font-family:inherit;outline:none}
 .filter-chip:hover{border-color:var(--blue);color:var(--blue-d)}
 .filter-chip.active{background:var(--blue);color:#fff;border-color:var(--blue)}
 .case-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
-.case-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:.15s;display:flex;flex-direction:column}
+.case-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;position:relative}
 .case-card:hover{border-color:var(--blue);box-shadow:var(--shadow-md);transform:translateY(-2px)}
-.case-card-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;margin-bottom:10px;width:fit-content}
-.case-card h3{font-size:15px;font-weight:600;margin-bottom:6px;line-height:1.4}
-.case-card .method-tag{font-size:12px;color:var(--purple);font-weight:500;margin-bottom:6px}
+.case-card .pin-btn{position:absolute;top:10px;right:10px;font-size:12px;opacity:0;transition:.15s;background:transparent;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.case-card:hover .pin-btn{opacity:.6}
+.case-card:hover .pin-btn:hover{opacity:1;background:var(--border-l)}
+.case-card .pin-btn.pinned{opacity:1;color:var(--amber)}
+.case-card.pinned{border-color:var(--amber-border);background:var(--amber-l)}
+.case-card.pinned .pin-btn{opacity:1;color:var(--amber)}
+.case-card-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;margin-bottom:8px;width:fit-content;margin-right:24px}
+.case-card h3{font-size:15px;font-weight:600;margin-bottom:4px;line-height:1.4;padding-right:20px}
+.case-card .method-tag{font-size:12px;color:var(--purple);font-weight:500;margin-bottom:4px}
 .case-card .method-tag span{background:var(--purple-l);padding:1px 6px;border-radius:4px}
-.case-card p{font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+.case-card .card-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.case-card .card-tags .ctag{font-size:10px;padding:1px 6px;border-radius:3px;background:var(--border-l);color:var(--text2)}
+.case-card p{font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1}
 .case-card-meta{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3);margin-top:auto}
 .case-card-meta .avatar{width:24px;height:24px;border-radius:50%;background:var(--purple-l);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--purple);font-weight:600}
+.case-card-meta .author-role{font-size:10px;color:var(--text3)}
+.sort-bar{margin-left:auto}
+.sort-bar select{padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card);color:var(--text2);cursor:pointer;outline:none}
+.sort-bar select:focus{border-color:var(--blue)}
 .extract-layout{display:grid;grid-template-columns:260px 1fr 260px;gap:20px;height:calc(100vh - 56px - 64px);min-height:540px}
 @media(max-width:900px){.extract-layout{grid-template-columns:1fr;height:auto}.avatar-panel,.keyword-panel{display:none}.hero{flex-direction:column;text-align:center;padding:28px}.case-grid{grid-template-columns:1fr}}
 .avatar-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;align-items:center;text-align:center;overflow-y:auto}
@@ -239,6 +251,13 @@ input,textarea{font-family:inherit;outline:none}
     <div class="filter-chip" data-filter="客户健康度">客户健康度</div>
     <div class="filter-chip" data-filter="跨部门协作">跨部门协作</div>
     <div class="filter-chip" data-filter="新人上手">新人上手</div>
+    <div class="sort-bar">
+      <select id="sortSelect" onchange="changeSort(this.value)">
+        <option value="newest">最新</option>
+        <option value="fav">最多收藏</option>
+        <option value="category">按分类</option>
+      </select>
+    </div>
   </div>
   <div class="case-grid" id="caseGrid"></div>
 </section>
@@ -421,25 +440,55 @@ function editUserName(){
   }
 }
 
-// DeepSeek System Prompt
+// DeepSeek System Prompt（V2 — 增强版上下文感知）
 const AI_PROMPT = `你是「小萃」，一位资深的客户成功（CSM）经验萃取访谈官。你的任务是用 CSM 六步法引导用户深入回顾一个客户成功项目案例，并实时提取关键信息。
 
-六步法流程：第1步「项目背景」了解客户行业、产品、合作时间；第2步「遇到的问题」挖掘核心挑战；第3步「解决策略」关键动作；第4步「执行过程」时间线、节点、工具；第5步「最终结果」量化指标；第6步「方法总结」自动提炼五步打法。
+## 你的角色定位
+- 你像一位资深的同行顾问，自然、有深度地聊天
+- 你会基于用户刚刚说的内容往下追问，而不是机械地念预设问题
+- 你会把用户前后提到的信息串联起来，让对话有递进感
+- 你会用反问、确认、补充提问等方式让用户说得更深
+
+## 六步法流程
+第1步「项目背景」：了解客户是谁（行业/规模/产品），合作多久，初始状态
+第2步「遇到的问题」：核心挑战是什么，为什么之前方法不行，不解决的后果
+第3步「解决策略」：用户采取的关键动作，每一步的优先级，哪个动作贡献最大
+第4步「执行过程」：时间线、关键里程碑、沟通协调方式、用到的工具/方法
+第5步「最终结果」：可量化的成果（使用率/续约率/ARR增长/NPS提升/人效变化）
+第6步「方法总结」：基于前面所有信息自动提炼五步打法
+
+## 对话进阶技巧（重要）
+1. 「承上启下」—— 每次回应的第一句话先肯定/总结用户刚说的内容，再引出下一问
+   ＞ 例："你提到客户对接人频繁更换，这个确实很头疼。那当时对接人变动之后，客户内部还有没有人能推动系统使用？"
+2. 「具体化追问」—— 不要问泛泛的问题，要基于用户给出的具体信息往下深挖
+   ＞ 例：用户说"使用率下降了" → 不问"为什么"而是问"你发现下降集中在哪个模块？"
+3. 「建立关联」—— 当用户当前说的内容跟前一步相关时，把前后信息串起来
+   ＞ 例：用户在第3步说策略 → "你前面提到问题是XXX，这个策略正好是针对那个问题的"
+4. 「适时挑战」—— 用户说得不够具体时，用挑战性的追问帮他深入
+   ＞ 例："你说做了价值复盘，具体是怎么做的？是跟谁开的会？用了什么数据？"
+5. 「渐进式收拢」—— 当前步骤信息收集差不多了，用一个总结句收尾再推进
+   ＞ 例："好，背景我清楚了：XX行业客户，YY产品，用了ZZ时间，初始状态是AA。那我们进到下一步……"
 
 ## 可引用的客户成功领域经典框架
-当用户描述的内容与某个框架匹配时，可以在回复中自然提及：
-- 客户健康度模型（数据驱动的红/黄/绿三档评分体系，预测流失风险）
+当用户描述的内容与某个框架明显匹配时，可以在回复中自然提及：
+- 客户健康度模型（数据驱动的红/黄/绿三档评分体系）
 - 客户生命周期管理（获取→上手→采用→扩展→续约）
 - Champion培养框架（在客户组织中培养关键推动人）
-- 价值实现框架（定期制作ROI价值报告，用数据证明业务收益）
-- 增购扩展框架（信号监控→内部拉通→价值铺垫→分阶段方案）
+- 价值实现框架（定期制作ROI价值报告）
+- 增购扩展框架（信号监控→内部拉通→分阶段方案）
 - 流失预警与挽回框架（48小时内介入→价值复盘→挽回方案）
 
-对话规则：1. 每次只说一个步骤的内容，不要跳过 2. 自然有深度地追问，像资深同行聊天 3. 根据用户输入实时提取关键词到6个维度 4. 第6步自动生成方法总结 5. 用亲切但专业的中文
+## 输出格式（务必返回纯 JSON，不要 markdown 包裹）
+{"reply":"你的回应","keywords":{"company":[],"problem":[],"action":[],"process":[],"result":[],"method":[]},"methodology":{"title":"","steps":[]},"step_complete":true}
 
-输出纯JSON格式不要markdown包裹：{"reply":"你的回应","keywords":{"company":[],"problem":[],"action":[],"process":[],"result":[],"method":[]},"methodology":{"title":"","steps":[]},"step_complete":true}
-
-注：keywords每维度最多5个标签；methodology仅第6步返回；step_complete表示是否可进入下一步；用户信息不足时继续追问不要急于推进；第5步完成后第6步自动生成不要问用户；第一轮用户还没说话时由你先开口引导。`;
+## 注
+- keywords 每个维度最多5个标签，无则返回空数组
+- methodology 仅在第6步时返回完整数据，其他步骤返回 null
+- step_complete=true 表示当前步骤信息足够，可进入下一步
+- 用户信息不足时继续追问不要急于推进
+- 第5步完成后第6步自动基于前面信息生成方法总结，不要问用户"要不要生成"
+- 请使用亲切但有深度的中文
+- 第一轮用户还没说话时由你先开口引导`;
 
 // ========== Seed Data (内置 4 个默认案例) ==========
 const SEED_CASES = [
@@ -530,7 +579,7 @@ function addCase(c){
 }
 
 // ========== State ==========
-let currentFilter='all', currentCaseId=null, currentDetailCase=null, profileTab='pub';
+let currentFilter='all', currentSort='newest', currentCaseId=null, currentDetailCase=null, profileTab='pub';
 let stepIdx=0;
 let extractedKW = {company:[],problem:[],action:[],process:[],result:[],method:[]};
 let conversationLog=[];
@@ -564,6 +613,17 @@ function go(view){
 }
 
 // ========== Home ==========
+function changeSort(val){
+  currentSort=val;
+  renderCases();
+}
+
+function togglePin(id, e){
+  e.stopPropagation();
+  const c=mockCases.find(x=>x.id===id);
+  if(c){c.pinned=!c.pinned;saveCases();renderCases();toast(c.pinned?'已置顶':'已取消置顶');}
+}
+
 function renderCases(){
   const grid=document.getElementById('caseGrid');
   let cs = currentFilter==='all' ? [...mockCases] : mockCases.filter(c=>c.category===currentFilter);
@@ -571,16 +631,29 @@ function renderCases(){
     const t=searchTerm.toLowerCase();
     cs=cs.filter(c=>c.title.toLowerCase().includes(t)||c.tags.some(tg=>tg.toLowerCase().includes(t))||c.category.toLowerCase().includes(t)||(c.methodology?.title||'').toLowerCase().includes(t));
   }
+  // Sort
+  cs.sort((a,b)=>{
+    // Pinned always first
+    if(a.pinned && !b.pinned) return -1;
+    if(!a.pinned && b.pinned) return 1;
+    if(currentSort==='fav') return (b.favorite?1:0)-(a.favorite?1:0);
+    if(currentSort==='category') return (a.category||'').localeCompare(b.category||'');
+    return b.id - a.id; // newest first
+  });
   const catColors={流失挽回:'blue',客户健康度:'green',续约增购:'amber',跨部门协作:'purple'};
   grid.innerHTML = cs.map(c=>`
-    <div class="case-card" onclick="openCase(${c.id})">
+    <div class="case-card ${c.pinned?'pinned':''}" onclick="openCase(${c.id})">
+      <button class="pin-btn ${c.pinned?'pinned':''}" onclick="togglePin(${c.id},event)" title="${c.pinned?'取消置顶':'置顶'}">📌</button>
       <span class="case-card-tag" style="background:var(--${catColors[c.category]||'blue'}-l);color:var(--${catColors[c.category]||'blue'}-d)">${c.category}</span>
       <div class="method-tag"><span>📋 ${c.methodology?.title||''}</span></div>
       <h3>${c.title}</h3>
-      <p>${(c.background||'').substring(0,70)}…</p>
+      <div class="card-tags">${(c.tags||[]).slice(0,4).map(t=>`<span class="ctag">${t}</span>`).join('')}</div>
+      <p>${(c.background||'').substring(0,80)}…</p>
       <div class="case-card-meta">
         <div class="avatar">${(c.author||'?')[0]}</div>
         <span>${c.author||'匿名'}</span>
+        <span class="author-role">${c.authorRole||''}</span>
+        <span style="margin-left:auto">${c.favorite?'❤️':''} ${c.pinned?'📌':''}</span>
       </div>
     </div>
   `).join('');
@@ -684,8 +757,14 @@ function addUserMsg(text){
 }
 function sendText(){
   const input=document.getElementById('textInput');
-  const text=input.value.trim();
+  let text=input.value.trim();
   if(!text)return;
+  // Auto-split long text (over 800 chars) into shorter sentences
+  if(text.length>800){
+    const sentences = text.match(/[^。！？\n]+[。！？\n]?/g)||[text.substring(0,800)];
+    text = sentences[0];
+    toast('💡 内容较长，已取第一段。一次聊一段效果更好');
+  }
   input.value='';
   addUserMsg(text);
   advanceStep(text);
