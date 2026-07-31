@@ -921,7 +921,18 @@ function advanceStep(userText){
   setProcessing(true);
   callAI(stepIdx+1, userText, history).then(result=>{
     setProcessing(false);
-    if(!result) return;
+    if(!result || !result.reply){
+      // AI 失败：使用后备问题继续推进，不让用户卡住
+      const backup = DIALOGUE_SCRIPT[stepIdx+1]?.ai || '继续聊，你能详细说说吗？';
+      stepIdx++;
+      if(stepIdx<6){
+        document.getElementById('chatTitle').textContent='经验萃取对话 · 第'+(stepIdx+1)+'步';
+        updateStepProgress();
+        addAIMsg(backup, stepIdx);
+        toast('⚠️ AI 回复为空，已使用备用问题继续，可继续对话');
+      } else endConversation();
+      return;
+    }
 
     // Update keywords
     if(result.keywords) Object.keys(result.keywords).forEach(k=>{
@@ -941,8 +952,12 @@ function advanceStep(userText){
       document.getElementById('chatTitle').textContent='经验萃取对话 · 第'+(stepIdx+1)+'步';
       updateStepProgress();
       if(stepIdx===5){ generateMethodology(); showMethodologyInChat(); }
-      else addAIMsg(result.reply, stepIdx-1);
+      else addAIMsg(result.reply, stepIdx);
     } else endConversation();
+  }).catch(err=>{
+    setProcessing(false);
+    console.error('advanceStep error:', err);
+    toast('对话中断：'+err.message+'。请刷新重试。');
   });
 }
 
