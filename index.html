@@ -885,13 +885,11 @@ function addUserMsg(text){
 }
 function sendText(){
   const input=document.getElementById('textInput');
-  let text=input.value.trim();
+  const text=input.value.trim();
   if(!text)return;
-  // Auto-split long text (over 800 chars) into shorter sentences
-  if(text.length>800){
-    const sentences = text.match(/[^。！？\n]+[。！？\n]?/g)||[text.substring(0,800)];
-    text = sentences[0];
-    toast('💡 内容较长，已取第一段。一次聊一段效果更好');
+  // 软提示：超过 1500 字才警告，不主动截断（避免破坏用户完整输入）
+  if(text.length>1500){
+    toast('⚠️ 内容较长（'+text.length+'字），建议拆成几段聊效果更好');
   }
   input.value='';
   addUserMsg(text);
@@ -1073,15 +1071,41 @@ function updateProgressRing(){
 // ========== Voice ==========
 function toggleVoice(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){toast('浏览器不支持语音识别，请用文字输入');return;}
+  if(!SR){
+    toast('当前浏览器不支持语音识别，请在系统浏览器（Safari/Chrome）中打开');
+    return;
+  }
   if(isRecording){recognition.stop();return;}
   recognition=new SR();
-  recognition.lang='zh-CN';recognition.continuous=false;recognition.interimResults=true;
+  recognition.lang='zh-CN';
+  recognition.continuous=true; // 持续识别，支持长段语音
+  recognition.interimResults=true;
   recognition.onstart=()=>{isRecording=true;document.getElementById('voiceBtn').classList.add('recording');document.getElementById('voiceIcon').textContent='⏹';document.getElementById('avatarStatus').textContent='🎤 聆听中...';document.getElementById('avatarImg').classList.add('speaking');};
-  recognition.onresult=(e)=>{let interim='',final='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)final+=e.results[i][0].transcript;else interim+=e.results[i][0].transcript;}document.getElementById('textInput').value=final||interim;if(final)setTimeout(()=>sendText(),200);};
-  recognition.onerror=()=>toast('语音识别出错，可用文字输入');
+  recognition.onresult=(e)=>{
+    let interim='',final='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) final+=e.results[i][0].transcript;
+      else interim+=e.results[i][0].transcript;
+    }
+    const cur = document.getElementById('textInput').value;
+    document.getElementById('textInput').value = final || interim || cur;
+    if(final) setTimeout(()=>sendText(), 300);
+  };
+  recognition.onerror=(e)=>{
+    const code=e.error;
+    if(code==='not-allowed'||code==='service-not-allowed'){
+      toast('麦克风权限被拒绝，请在浏览器设置中允许麦克风');
+    } else if(code==='no-speech'){
+      toast('未检测到语音，请重试');
+    } else if(code==='audio-capture'){
+      toast('麦克风不可用，请检查设备');
+    } else {
+      toast('语音识别失败，建议用文字输入或在系统浏览器中打开');
+    }
+  };
   recognition.onend=()=>{isRecording=false;document.getElementById('voiceBtn').classList.remove('recording');document.getElementById('voiceIcon').textContent='🎤';document.getElementById('avatarStatus').textContent='访谈进行中';document.getElementById('avatarImg').classList.remove('speaking');};
-  recognition.start();
+  try{recognition.start();}
+  catch(e){toast('启动语音识别失败，请用文字输入');console.error(e);}
 }
 function speak(btn){
   const text=btn.parentNode.childNodes[0].nodeValue;
