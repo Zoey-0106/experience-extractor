@@ -922,15 +922,10 @@ function advanceStep(userText){
   callAI(stepIdx+1, userText, history).then(result=>{
     setProcessing(false);
     if(!result || !result.reply){
-      // AI 失败：使用后备问题继续推进，不让用户卡住
-      const backup = DIALOGUE_SCRIPT[stepIdx+1]?.ai || '继续聊，你能详细说说吗？';
-      stepIdx++;
-      if(stepIdx<6){
-        document.getElementById('chatTitle').textContent='经验萃取对话 · 第'+(stepIdx+1)+'步';
-        updateStepProgress();
-        addAIMsg(backup, stepIdx);
-        toast('⚠️ AI 回复为空，已使用备用问题继续，可继续对话');
-      } else endConversation();
+      // AI 失败：不推进步骤，重新问当前问题，让用户再回答一次
+      const backup = DIALOGUE_SCRIPT[stepIdx]?.ai || '继续聊，你能详细说说吗？';
+      addAIMsg(backup + '\n\n⚠️（AI 上次回复失败，请再回答一次）', stepIdx);
+      toast('⚠️ AI 回复失败，请重新回答当前问题');
       return;
     }
 
