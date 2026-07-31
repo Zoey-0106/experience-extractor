@@ -883,10 +883,13 @@ function addUserMsg(text){
   conversationLog.push({role:'user',text});
   extractKeywords(text,stepIdx);
 }
+let isProcessing = false; // AI 响应中防重复提交
+
 function sendText(){
   const input=document.getElementById('textInput');
   const text=input.value.trim();
   if(!text)return;
+  if(isProcessing){toast('AI 正在回复中，请稍等…');return;}
   // 软提示：超过 1500 字才警告，不主动截断（避免破坏用户完整输入）
   if(text.length>1500){
     toast('⚠️ 内容较长（'+text.length+'字），建议拆成几段聊效果更好');
@@ -894,6 +897,18 @@ function sendText(){
   input.value='';
   addUserMsg(text);
   advanceStep(text);
+}
+
+function setProcessing(state){
+  isProcessing = state;
+  const sendBtn = document.querySelector('.send-btn');
+  const textInput = document.getElementById('textInput');
+  if(sendBtn) {
+    sendBtn.disabled = state;
+    sendBtn.style.opacity = state ? '0.5' : '1';
+    sendBtn.style.pointerEvents = state ? 'none' : 'auto';
+  }
+  if(textInput) textInput.disabled = state;
 }
 function advanceStep(userText){
   const fields=['background','problem','strategy','process','result',''];
@@ -903,7 +918,9 @@ function advanceStep(userText){
   const history = conversationLog.map(m=>({role:m.role,content:m.text||m.content||''}));
 
   // Call DeepSeek
+  setProcessing(true);
   callAI(stepIdx+1, userText, history).then(result=>{
+    setProcessing(false);
     if(!result) return;
 
     // Update keywords
@@ -1108,9 +1125,18 @@ function toggleVoice(){
   catch(e){toast('启动语音识别失败，请用文字输入');console.error(e);}
 }
 function speak(btn){
-  const text=btn.parentNode.childNodes[0].nodeValue;
-  if('speechSynthesis' in window){const u=new SpeechSynthesisUtterance(text);u.lang='zh-CN';u.rate=1.05;speechSynthesis.speak(u);document.getElementById('avatarImg').classList.add('speaking');u.onend=()=>document.getElementById('avatarImg').classList.remove('speaking');}
-  else toast('浏览器不支持语音朗读');
+  // 完整获取气泡内全部文本（修复取错节点导致朗读不到内容的bug）
+  const text = (btn.parentNode.innerText || btn.parentNode.textContent || '').replace(/🔊/g, '').trim();
+  if(!text){toast('无可朗读内容');return;}
+  if(!('speechSynthesis' in window)){toast('浏览器不支持语音朗读');return;}
+  // 取消正在播放的，再播放新的
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang='zh-CN';u.rate=1.05;
+  document.getElementById('avatarImg').classList.add('speaking');
+  u.onend = ()=>document.getElementById('avatarImg').classList.remove('speaking');
+  u.onerror = ()=>document.getElementById('avatarImg').classList.remove('speaking');
+  window.speechSynthesis.speak(u);
 }
 
 // ========== Confirm ==========
