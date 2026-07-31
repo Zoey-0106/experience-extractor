@@ -666,12 +666,29 @@ const CS_FRAMEWORKS = [
 // ========== Data Layer ==========
 let mockCases = [];
 
+const SEED_VERSION = 2; // 每次新增种子案例时 +1
+
 function loadCases(){
+  const savedVer = parseInt(localStorage.getItem('seed_version')||'0');
   const saved = localStorage.getItem('extract_cases');
+
+  // 种子版本升级 → 合并新种子案例，保留用户自己的案例
+  if(savedVer < SEED_VERSION){
+    const oldCases = saved ? JSON.parse(saved) : [];
+    const existingIds = new Set(oldCases.map(c=>c.id));
+    // 只添加新的种子案例（用户已导入的不覆盖）
+    const newSeeds = SEED_CASES.filter(s=>!existingIds.has(s.id));
+    mockCases = [...newSeeds, ...oldCases];
+    localStorage.setItem('seed_version', String(SEED_VERSION));
+    saveCases();
+    return;
+  }
+
   if(saved){
     try{ mockCases = JSON.parse(saved); }catch(e){ mockCases = [...SEED_CASES]; }
   } else {
     mockCases = [...SEED_CASES];
+    localStorage.setItem('seed_version', String(SEED_VERSION));
     saveCases();
   }
 }
